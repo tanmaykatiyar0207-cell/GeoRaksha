@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+client/dist/
+
+# Environment variables
+.env
+client/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# GTFS raw data (193 MB — too large for GitHub)
+# Download separately: see README.md
+gtfs-data/
+
+# Misc scripts used during development
+*.py
+slide4_fixed.html
+client/*.cjs
+client/*.py
+server/*.cjs
+
+# Logs
+*.log
+npm-debug.log*
+
+# Lock files (optional — keep package-lock for reproducibility)
+# package-lock.json
+# client/package-lock.json
