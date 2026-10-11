@@ -15,12 +15,14 @@ async function runTests() {
     await init();
     graph = await getGraph();
     
-    testEdgeId = Object.keys(graph.edges).find(id => id.includes('waypoint'));
+    testEdgeId = Object.keys(graph.edges).find(id => id.startsWith('edge_waypoint_') && id.includes('__waypoint_')) 
+               || Object.keys(graph.edges).find(id => id.includes('waypoint'));
     const edge = graph.edges[testEdgeId];
     const fromNode = graph.nodes[edge.fromNode];
+    const toNode = graph.nodes[edge.toNode];
     
-    testLat = fromNode.lat;
-    testLon = fromNode.lon;
+    testLat = (fromNode.lat + toNode.lat) / 2;
+    testLon = (fromNode.lon + toNode.lon) / 2;
     freeFlow = freeFlowSpeed(testEdgeId);
     
     console.log(`\nUsing test edge: ${testEdgeId} (freeFlow: ${freeFlow} km/h)`);
@@ -163,14 +165,14 @@ function test5_MapMatchRejection() {
   console.log("\n▶ Running Test 5 — Map-match rejection (>50m)");
   const s1 = getStats();
   
-  // 111m away (0.001 deg lat)
-  processPing({ busId: 'bus-test5', lat: testLat + 0.001, lon: testLon, speed: freeFlow, timestamp: pingTimestamp++, routeId: 'T' });
+  // Guaranteed >50m away (outside Bengaluru transit grid)
+  processPing({ busId: 'bus-test5', lat: 12.0, lon: 75.0, speed: freeFlow, timestamp: pingTimestamp++, routeId: 'T' });
   const s2 = getStats();
   assert.strictEqual(s2.pingsRejected, s1.pingsRejected + 1, "Ping >50m should be rejected");
   assert.strictEqual(s2.pingsProcessed, s1.pingsProcessed, "Rejected ping should not be processed");
   
-  // 11m away (0.0001 deg lat)
-  processPing({ busId: 'bus-test5', lat: testLat + 0.0001, lon: testLon, speed: freeFlow, timestamp: pingTimestamp++, routeId: 'T' });
+  // Directly on test edge (<50m)
+  processPing({ busId: 'bus-test5', lat: testLat, lon: testLon, speed: freeFlow, timestamp: pingTimestamp++, routeId: 'T' });
   const s3 = getStats();
   assert.strictEqual(s3.pingsProcessed, s2.pingsProcessed + 1, "Ping <50m should be processed");
   console.log("  PASS");
