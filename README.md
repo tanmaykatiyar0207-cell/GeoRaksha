@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="client/dist/logo.png" alt="GeoRaksha Logo" width="120" />
+  <img src="client/public/logo.png" alt="GeoRaksha Logo" width="120" />
 </p>
 
 <h1 align="center">GeoRaksha</h1>
