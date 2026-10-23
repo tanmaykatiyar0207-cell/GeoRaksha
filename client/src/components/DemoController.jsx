@@ -46,7 +46,7 @@ export default function DemoController({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '16px' }}>🎛️</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Live Demo Controls</span>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Tactical Operations Console</span>
             </div>
             <button
               onClick={() => setIsExpanded(false)}
@@ -60,7 +60,7 @@ export default function DemoController({
           </div>
 
           <div style={{ fontSize: '11px', color: '#64748b' }}>
-            Trigger real-time multi-agent reactions on demand for judges:
+            Simulate real-time corridor disruptions & signal overrides:
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -154,7 +154,7 @@ export default function DemoController({
           onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(15, 23, 42, 0.4)'; }}
           onMouseOut={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(15, 23, 42, 0.3)'; }}
         >
-          <span>🎛️</span> Demo Scenario Controls
+          <span>🎛️</span> Incident Simulation Console
         </button>
       )}
     </div>

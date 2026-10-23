@@ -226,15 +226,47 @@ export default function MapView({ busPositions = {}, segmentStatus = {}, activeR
     });
   }, [busPositions]);
 
-  // Route line intentionally hidden on dashboard view — visible only in Navigation view
-  const activeRoutePolyline = null;
+  // Active Green Wave emergency corridor on Command Center
+  const activeRoutePolyline = useMemo(() => {
+    if (!activeRoute?.geoJson?.coordinates) return null;
+    const positions = activeRoute.geoJson.coordinates.map(([lon, lat]) => [lat, lon]);
+    return (
+      <Polyline
+        positions={positions}
+        pathOptions={{
+          color: '#059669',
+          weight: 6,
+          opacity: 0.9,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }}
+      />
+    );
+  }, [activeRoute]);
 
+  // Destination Hospital Pin on Command Center
+  const destinationMarker = useMemo(() => {
+    if (!activeRoute?.geoJson?.coordinates) return null;
+    const coords = activeRoute.geoJson.coordinates;
+    const lastCoord = coords[coords.length - 1];
+    return (
+      <Marker
+        position={[lastCoord[1], lastCoord[0]]}
+        icon={destinationIcon}
+      />
+    );
+  }, [activeRoute]);
 
-  // Destination Hospital Pin — restricted to Navigation view only
-  const destinationMarker = null;
-
-  // Ambulance Marker — restricted to Navigation view only
-  const ambulanceMarker = null;
+  // Ambulance Marker on Command Center
+  const ambulanceMarker = useMemo(() => {
+    if (!ambulancePosition?.lat || !ambulancePosition?.lon) return null;
+    return (
+      <Marker
+        position={[ambulancePosition.lat, ambulancePosition.lon]}
+        icon={createAmbulanceIcon(ambulancePosition.heading || 0)}
+      />
+    );
+  }, [ambulancePosition]);
 
   return (
     <div className="map-container-wrapper" style={{ position: 'relative' }}>

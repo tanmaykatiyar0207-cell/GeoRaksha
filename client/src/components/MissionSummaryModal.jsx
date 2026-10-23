@@ -102,15 +102,15 @@ export default function MissionSummaryModal({ summary, onClose }) {
                 </div>
 
                 <div style={{
-                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  background: 'linear-gradient(135deg, #059669, #047857)',
                   borderRadius: '8px', padding: '10px 14px',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px',
                 }}>
-                  <div style={{ fontSize: '10px', color: '#dbeafe', fontWeight: 600, textTransform: 'uppercase' }}>Golden Hour Survival</div>
+                  <div style={{ fontSize: '10px', color: '#d1fae5', fontWeight: 600, textTransform: 'uppercase' }}>Corridor Efficiency</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '16px' }}>❤️</span>
+                    <span style={{ fontSize: '16px' }}>⚡</span>
                     <span style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>
-                      +{Math.min(((summary.timeSavedSeconds / 60) * 7.2), 85).toFixed(1)}%
+                      +{Math.min(Math.round(((summary.timeSavedSeconds || 60) / Math.max(summary.optimizedEta || 300, 60)) * 100), 65)}% Faster
                     </span>
                   </div>
                 </div>

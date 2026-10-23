@@ -88,64 +88,95 @@ export async function init() {
       );
     }
     
-    const startNode = active.nodePath[0];
+    // Determine ambulance's current position along active corridor
+    const currentEdgeIdx = sharedState.ambulanceProgress?.currentEdgeIdx || 0;
+    const bottleneckIdx = active.edgePath.indexOf(edgeId);
+
+    // If ambulance has already driven past this bottleneck, skip rerouting
+    if (currentEdgeIdx > bottleneckIdx && bottleneckIdx >= 0) {
+      return;
+    }
+
+    // Determine divergence point: the next upcoming waypoint node
+    const divergenceIdx = Math.min(currentEdgeIdx + 1, active.nodePath.length - 1);
+    const divergenceNode = active.nodePath[divergenceIdx];
     const endNode = active.nodePath[active.nodePath.length - 1];
-    
+
     const oldTime = active.totalTimeSeconds;
-    
-    // Compute what the old route would cost with current live speeds (congested baseline)
-    let congestedOldTime = 0;
-    for (const eid of active.edgePath) {
+
+    // Compute optimal detour starting from the ambulance's forward node to the destination
+    const detour = computeRoute(divergenceNode, endNode);
+    if (!detour) return;
+
+    // Splice traversed history with the newly computed forward detour
+    const traversedNodes = active.nodePath.slice(0, divergenceIdx);
+    const traversedEdges = active.edgePath.slice(0, divergenceIdx);
+    const remainingOldEdges = active.edgePath.slice(divergenceIdx);
+
+    const isPathChanged = JSON.stringify(remainingOldEdges) !== JSON.stringify(detour.edgePath);
+
+    const combinedNodePath = [...traversedNodes, ...detour.nodePath];
+    const combinedEdgePath = [...traversedEdges, ...detour.edgePath];
+    const combinedCoordinates = combinedNodePath.map(nodeId => {
+      const n = graph.nodes[nodeId];
+      return [n.lon, n.lat];
+    });
+
+    const newRoute = {
+      nodePath: combinedNodePath,
+      edgePath: combinedEdgePath,
+      totalTimeSeconds: Math.round(detour.totalTimeSeconds),
+      geoJson: {
+        type: "LineString",
+        coordinates: combinedCoordinates
+      }
+    };
+
+    // Calculate time saved: remaining old trajectory with congestion vs new detour
+    let congestedOldRemaining = 0;
+    for (const eid of remainingOldEdges) {
       const t = getEdgeTimeSeconds(eid);
-      congestedOldTime += (t === Infinity) ? 600 : t; // blocked = +10min penalty for comparison
+      congestedOldRemaining += (t === Infinity) ? 300 : t; // blocked road penalty
+    }
+    const timeSavedNow = Math.round(congestedOldRemaining - detour.totalTimeSeconds);
+
+    console.log(`\n[routeOptimizer] 🔄 Corridor updated via ${divergenceNode} due to ${isBlocked ? 'ROAD CLOSURE' : 'traffic'} on ${edgeId}`);
+    console.log(`[routeOptimizer]    Old Remaining ETA: ${Math.round(oldTime)}s | Detour ETA: ${Math.round(newRoute.totalTimeSeconds)}s | Path Changed: ${isPathChanged ? 'YES' : 'NO'}`);
+
+    sharedState.activeRoute = newRoute;
+    stateEvents.emit('route:changed', newRoute);
+    if (isPathChanged) stateEvents.emit('route:diverted', active);
+
+    if (timeSavedNow > 0) {
+      sharedState.timeSaved = Math.max(sharedState.timeSaved, timeSavedNow);
+      stateEvents.emit('time_saved:changed');
     }
 
-    const newRoute = computeRoute(startNode, endNode);
-    if (newRoute) {
-      const isPathChanged = JSON.stringify(active.edgePath) !== JSON.stringify(newRoute.edgePath);
-      
-      console.log(`\n[routeOptimizer] 🔄 Route affected by ${isBlocked ? 'ROAD CLOSURE' : 'traffic'} on ${edgeId}. Recalculating...`);
-      console.log(`[routeOptimizer]    Old ETA: ${oldTime.toFixed(1)}s | New ETA: ${newRoute.totalTimeSeconds.toFixed(1)}s`);
-      console.log(`[routeOptimizer]    Path changed: ${isPathChanged ? 'YES' : 'NO'}`);
-      
-      sharedState.activeRoute = newRoute;
-      stateEvents.emit('route:changed', newRoute);
-      if (isPathChanged) stateEvents.emit('route:diverted', active);
-
-      // Track time saved vs congested/blocked baseline
-      const timeSavedNow = Math.round(congestedOldTime - newRoute.totalTimeSeconds);
-      if (timeSavedNow > 0) {
-        sharedState.timeSaved = Math.max(sharedState.timeSaved, timeSavedNow);
-        stateEvents.emit('time_saved:changed');
-      }
-
-      if (isPathChanged) {
-        sharedState.rerouteCount++;
-      }
-
-      const timeDelta = Math.round(oldTime - newRoute.totalTimeSeconds);
-      const timeDeltaStr = timeDelta >= 0 ? `Saved ${timeDelta}s` : `Added ${Math.abs(timeDelta)}s`;
-      const bottleneckLocation = getLocationName(edgeId);
-
-      let title, desc;
-      if (isBlocked) {
-        title = `Road Closure Bypassed: ${bottleneckLocation}`;
-        desc = `Blocked corridor eliminated from candidate paths. Dijkstra MinHeap locked alternative trajectory around ${bottleneckLocation} construction zone (${timeDeltaStr}).`;
-      } else {
-        title = isPathChanged ? `Dynamic Reroute: Avoided ${bottleneckLocation}` : `Corridor Recalibrated: ${bottleneckLocation}`;
-        desc = isPathChanged
-          ? `Diverted emergency corridor around ${bottleneckLocation} bottleneck. Dijkstra MinHeap locked new optimal path (${timeDeltaStr} vs congested trajectory).`
-          : `Edge weights updated on ${bottleneckLocation}. Current trajectory remains optimal.`;
-      }
-
-      logAgentActivity(
-        'route',
-        isBlocked ? '🚧' : '🔄',
-        title,
-        desc,
-        { bottleneck: bottleneckLocation, oldETA: Math.round(oldTime), newETA: Math.round(newRoute.totalTimeSeconds), timeSavedSeconds: timeDelta, isPathChanged, isBlocked }
-      );
+    if (isPathChanged) {
+      sharedState.rerouteCount++;
     }
+
+    const bottleneckLocation = getLocationName(edgeId);
+    const timeDeltaStr = timeSavedNow > 0 ? `Saved ~${timeSavedNow}s` : `Optimal path maintained`;
+
+    let title, desc;
+    if (isBlocked) {
+      title = `Road Closure Bypassed: ${bottleneckLocation}`;
+      desc = `Impassable segment eliminated. Dijkstra MinHeap routed forward detour from ${getLocationName(divergenceNode)} (${timeDeltaStr}).`;
+    } else {
+      title = isPathChanged ? `Dynamic Reroute: Avoided ${bottleneckLocation}` : `Corridor Recalibrated: ${bottleneckLocation}`;
+      desc = isPathChanged
+        ? `Mid-transit detour locked from ${getLocationName(divergenceNode)}. Diverted around ${bottleneckLocation} bottleneck (${timeDeltaStr} vs gridlock).`
+        : `Edge weights updated on ${bottleneckLocation}. Current trajectory remains optimal.`;
+    }
+
+    logAgentActivity(
+      'route',
+      isBlocked ? '🚧' : '🔄',
+      title,
+      desc,
+      { bottleneck: bottleneckLocation, timeSavedSeconds: timeSavedNow, isPathChanged, isBlocked, divergenceNode }
+    );
   });
 }
 

@@ -171,9 +171,37 @@ export function getLocationName(id) {
         return `${stop.name} Junction`;
       }
     }
+    // If it's a waypoint with coordinates embedded (waypoint_lat_lon)
+    if (id.startsWith('waypoint_')) {
+      const parts = id.replace('waypoint_', '').split('_');
+      const lat = parseFloat(parts[0]);
+      const lon = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        if (lon >= 77.68) {
+          // Whitefield / Varthur / Kundalahalli / ITPL corridor
+          const eastRoads = [
+            "Whitefield Main Road", "Varthur Road", "Kundalahalli Gate",
+            "ITPL Main Road", "Hope Farm Bypass", "Channasandra Road",
+            "Doddanekundi Link Road", "Borewell Road", "Seetharampalya Road"
+          ];
+          const idx = hashString(id) % eastRoads.length;
+          const sfx = (hashString(id) % 2 === 0) ? "Intersection" : "Signal";
+          return `${eastRoads[idx]} ${sfx}`;
+        } else if (lon >= 77.62 && lon < 77.68) {
+          // HAL / Old Airport Road / Indiranagar / Marathahalli corridor
+          const centralRoads = [
+            "HAL Old Airport Road", "Marathahalli ORR", "Suranjan Das Road",
+            "Wind Tunnel Road", "Murugeshpalya Cross", "Domlur Inner Ring Road"
+          ];
+          const idx = hashString(id) % centralRoads.length;
+          const sfx = (hashString(id) % 2 === 0) ? "Junction" : "Signal";
+          return `${centralRoads[idx]} ${sfx}`;
+        }
+      }
+    }
   }
 
-  // Fallback: Generate a consistent realistic Bangalore road name for ugly OSM waypoints
+  // Consistent realistic fallback
   const index = hashString(id) % BANGALORE_ROADS.length;
   const suffixIndex = (hashString(id) >> 2) % 3;
   const suffix = suffixIndex === 0 ? "Intersection" : suffixIndex === 1 ? "Signal" : "Cross";

@@ -57,31 +57,35 @@ export function evaluatePosition(ambulancePos) {
   const secondsToArrival = distMeters / speedMs;
   const readableJunctionName = getLocationName(nextJunctionId);
 
-  if (secondsToArrival < 60 && distMeters > 50) {
+  // The alert should remain active until the ambulance has traversed PAST the junction
+  const hasPassedJunction = nearestIdx > nextIdx;
+
+  if (secondsToArrival <= 60 && !hasPassedJunction) {
     if (!sharedState.currentAlert || sharedState.currentAlert.junctionId !== nextJunctionId) {
       sharedState.currentAlert = {
         junctionId: nextJunctionId,
         junctionName: readableJunctionName,
-        secondsToArrival: Math.round(secondsToArrival),
+        secondsToArrival: Math.max(1, Math.round(secondsToArrival)),
         distMeters: Math.round(distMeters),
       };
       stateEvents.emit('alert:new', sharedState.currentAlert);
-      console.log(`[signalCoordinator] 🚨 ALERT NEW: Approaching ${readableJunctionName} in ${Math.round(secondsToArrival)}s`);
+      sharedState.signalAlertCount++;
+      console.log(`[signalCoordinator] 🚨 GREEN WAVE ARMED: Approaching ${readableJunctionName} in ${Math.round(secondsToArrival)}s`);
 
       logAgentActivity(
         'signal',
         '🚦',
-        `Signal Advisory: ${readableJunctionName}`,
-        `Approaching ${readableJunctionName} (${Math.round(distMeters)}m ahead). Green Wave pre-emption advisory transmitted to Bangalore Traffic Police (BTP) signal controller (T-${Math.round(secondsToArrival)}s).`,
+        `Green Wave Armed: ${readableJunctionName}`,
+        `Approaching ${readableJunctionName} (${Math.round(distMeters)}m ahead). Signal controller preemption active (T-${Math.max(1, Math.round(secondsToArrival))}s).`,
         { junctionId: nextJunctionId, junctionName: readableJunctionName, secondsToArrival: Math.round(secondsToArrival), distMeters: Math.round(distMeters) }
       );
     } else {
-      // Update countdown
-      sharedState.currentAlert.secondsToArrival = Math.round(secondsToArrival);
+      // Update countdown smoothly as the vehicle approaches
+      sharedState.currentAlert.secondsToArrival = Math.max(1, Math.round(secondsToArrival));
       sharedState.currentAlert.distMeters = Math.round(distMeters);
       stateEvents.emit('alert:new', sharedState.currentAlert);
     }
-  } else {
+  } else if (hasPassedJunction || distMeters > 1500) {
     if (sharedState.currentAlert) {
       const clearedJunction = sharedState.currentAlert.junctionId;
       const clearedName = sharedState.currentAlert.junctionName || getLocationName(clearedJunction);

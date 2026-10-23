@@ -99,21 +99,22 @@ io.on('connection', async (socket) => {
     sharedState.hospitalMessageCount = 0;
 
     // reset position to start
-    const startNode = (await getGraph()).nodes['stop_22628'];
+    const nodes = (await getGraph()).nodes;
+    const startNode = nodes['stop_22628'] || Object.values(nodes)[0];
     lastAmbulanceUpdate = { lat: startNode.lat, lon: startNode.lon, heading: 0, speed: 0, etaSeconds: 0 };
     
     io.emit('route:update', { routeGeoJson: null, etaSeconds: null });
     io.emit('ambulance:update', lastAmbulanceUpdate);
   });
 
-  // ── Demo Controller Triggers ─────────────────────────────────────
-  // Helper to pick an edge AHEAD of the ambulance for demo scenarios
+  // ── Tactical Dispatcher Simulator Controls ─────────────────────────
+  // Dynamically selects an edge directly ahead of the ambulance's current GPS position
   const getTargetEdge = () => {
     const path = sharedState.activeRoute?.edgePath;
     if (!path || path.length === 0) return 'edge_stop_22628__waypoint_12.9572_77.6990';
-    // Inject at 30% down the route to ensure it's ahead of the ambulance
-    const idx = Math.floor(path.length * 0.3);
-    return path[idx];
+    const currentIdx = sharedState.ambulanceProgress?.currentEdgeIdx || 0;
+    const aheadIdx = Math.min(currentIdx + 2, path.length - 1);
+    return path[aheadIdx];
   };
 
   socket.on('demo:inject_congestion', () => {
@@ -283,7 +284,8 @@ await initSignalCoordinator();
 
 // The ambulance starts parked at the congestion edge (stop_22628)
 // setActiveRoute is intentionally omitted until the user selects a route
-const startNode = (await getGraph()).nodes['stop_22628'];
+const graphNodes = (await getGraph()).nodes;
+const startNode = graphNodes['stop_22628'] || Object.values(graphNodes)[0];
 lastAmbulanceUpdate = { lat: startNode.lat, lon: startNode.lon, heading: 0, speed: 0, etaSeconds: 0 };
 evaluatePosition(lastAmbulanceUpdate);
 

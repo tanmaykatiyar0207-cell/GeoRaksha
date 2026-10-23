@@ -123,16 +123,6 @@ export default function HospitalCommsModal({
   const handlePresetClick = (preset) => {
     setSelectedProtocol(preset.protocol);
     handleSend(preset.text, preset.protocol);
-
-    // Auto-reply from hospital ER after 2-4 seconds
-    if (onHospitalReply && HOSPITAL_REPLIES[preset.protocol]) {
-      const replies = HOSPITAL_REPLIES[preset.protocol];
-      replies.forEach((reply, idx) => {
-        setTimeout(() => {
-          onHospitalReply(reply, preset.protocol);
-        }, 2000 + (idx * 2500)); // First reply at 2s, second at 4.5s
-      });
-    }
   };
 
   const mins = Math.ceil((etaSeconds || 300) / 60);

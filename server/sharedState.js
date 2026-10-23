@@ -24,6 +24,12 @@ export const sharedState = {
   eta: null,
   currentAlert: null,
   navigationStarted: false,
+  ambulancePosition: null,
+  ambulanceProgress: {
+    currentEdgeIdx: 0,
+    distanceTraveledKm: 0,
+    currentWayNodeId: null,
+  },
   timeSaved: 0,
   baselineEta: 0,
   etaHistory: [],  // [{raw, predicted, t}] — last 20 points for sparkline
@@ -35,8 +41,8 @@ export const sharedState = {
       id: 'boot_4',
       agent: 'signal',
       icon: '🚦',
-      title: 'Green Wave System Online',
-      description: 'Connected to Bangalore Traffic Police (BTP) signal API. 60-second junction threshold armed.',
+      title: 'Green Wave Advisory Armed',
+      description: '60-second Time-to-Junction lookahead active across municipal signal intersections.',
       timestamp: new Date().toLocaleTimeString(),
       createdAt: Date.now() - 1000
     },
@@ -44,8 +50,8 @@ export const sharedState = {
       id: 'boot_3',
       agent: 'eta',
       icon: '⏱️',
-      title: 'Speed Aggregator Synchronized',
-      description: 'Continuous speed-drift engine running on live edge weights.',
+      title: 'Predictive ETA Engine Online',
+      description: 'Holt\'s Double Exponential Smoothing calibrated with dynamic corridor velocities.',
       timestamp: new Date().toLocaleTimeString(),
       createdAt: Date.now() - 2000
     },
@@ -53,8 +59,8 @@ export const sharedState = {
       id: 'boot_2',
       agent: 'route',
       icon: '🗺️',
-      title: 'Dijkstra MinHeap Engine Ready',
-      description: 'Graph populated with 1,259 directional segments across Whitefield corridor.',
+      title: 'Dijkstra MinHeap Router Ready',
+      description: 'Graph initialized with 47,491 directional edges across Greater Bengaluru.',
       timestamp: new Date().toLocaleTimeString(),
       createdAt: Date.now() - 3000
     },
@@ -62,8 +68,8 @@ export const sharedState = {
       id: 'boot_1',
       agent: 'traffic',
       icon: '📡',
-      title: 'Floating Sensor Network Initialized',
-      description: '17 BMTC buses transmitting live telemetry across spatial grid index.',
+      title: 'Floating Sensor Grid Active',
+      description: '360+ BMTC transit probes streaming real-time telemetry across 3,401 spatial cells.',
       timestamp: new Date().toLocaleTimeString(),
       createdAt: Date.now() - 4000
     },

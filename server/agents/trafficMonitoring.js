@@ -224,7 +224,6 @@ export function processPing(ping) {
   }
 
   const matchedEdgeId = edgeLines[bestIdx].edgeId;
-  if (matchedEdgeId === 'ambient') return;
   pingsProcessed++;
 
   if (pingsProcessed % 25 === 1) {

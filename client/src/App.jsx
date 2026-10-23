@@ -89,7 +89,7 @@ function App() {
     clearMissionSummary
   } = useSocket();
 
-  const [viewMode, setViewMode] = useState('nav'); // 'dashboard' | 'nav'igation'
+  const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' | 'navigation' | 'about'
   const [sidebarTab, setSidebarTab] = useState('agents'); // 'agents' | 'overview'
 
   useEffect(() => {
@@ -426,13 +426,13 @@ function App() {
               />
               {/* Sidebar */}
               <div style={{
-                position: 'relative', width: '280px', background: '#f8fafc', height: '100%',
-                display: 'flex', flexDirection: 'column', color: '#ffffff',
+                position: 'relative', width: '280px', background: '#0f172a', height: '100%',
+                display: 'flex', flexDirection: 'column', color: '#f8fafc',
                 boxShadow: '4px 0 20px rgba(0,0,0,0.5)', animation: 'slideInLeft 0.2s ease-out'
               }}>
-                <div style={{ padding: '24px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 800 }}>GeoRaksha Menu</div>
-                  <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+                <div style={{ padding: '24px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>GeoRaksha Menu</div>
+                  <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}>✕</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', padding: '16px 10px', gap: '8px' }}>
                   <button onClick={() => { setShowLanding(true); setIsSidebarOpen(false); }} style={{
@@ -460,7 +460,7 @@ function App() {
                     <span>📐</span> System Architecture
                   </button>
                   <button onClick={() => { setShowTelemedicine(true); setIsSidebarOpen(false); }} style={{
-                    background: 'transparent', color: '#475569',
+                    background: 'transparent', color: '#cbd5e1',
                     padding: '12px 16px', borderRadius: '8px', textAlign: 'left', border: 'none', fontSize: '15px', fontWeight: 600, cursor: 'pointer', display: 'flex', gap: '12px'
                   }}>
                     <span>🩺</span> Telemedicine Hub

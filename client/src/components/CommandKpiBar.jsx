@@ -8,7 +8,7 @@ export default function CommandKpiBar({
   congestedCount = 0 
 }) {
   const isMissionActive = Boolean(activeRoute || ambulancePosition);
-  const minutesSaved = timeSaved ? (timeSaved / 60).toFixed(1) : '14.2';
+  const minutesSaved = timeSaved > 0 ? (timeSaved / 60).toFixed(1) : null;
 
   const kpis = [
     {
@@ -18,7 +18,7 @@ export default function CommandKpiBar({
       iconColor: '#2563eb',
       label: 'FLEET READINESS',
       value: isMissionActive ? '1 Active Mission' : '5 Units Available',
-      subtext: isMissionActive ? 'Emergency Corridor Engaged' : '4 Standby • 1 En Route',
+      subtext: isMissionActive ? 'Emergency Corridor Engaged' : 'Trauma Units on Standby',
       badge: isMissionActive ? 'ACTIVE' : 'READY',
       badgeColor: isMissionActive ? '#dc2626' : '#16a34a',
       badgeBg: isMissionActive ? '#fef2f2' : '#f0fdf4',
@@ -44,7 +44,7 @@ export default function CommandKpiBar({
       iconColor: '#9333ea',
       label: 'HOSPITAL READINESS',
       value: '4 Facilities Online',
-      subtext: '9 Trauma Bays • 14 ICU Beds',
+      subtext: 'Trauma Bays & Cath Labs Synced',
       badge: 'SYNCED',
       badgeColor: '#7c3aed',
       badgeBg: '#f5f3ff',
@@ -56,9 +56,9 @@ export default function CommandKpiBar({
       iconBg: '#fffbeb',
       iconColor: '#d97706',
       label: 'SIGNAL PREEMPTION',
-      value: isMissionActive ? 'Green Corridor Armed' : 'Automated Cascade Standby',
-      subtext: 'Dynamic ITMS Signal Override',
-      badge: isMissionActive ? 'LIVE OVERRIDE' : 'STANDBY',
+      value: isMissionActive ? 'Green Corridor Armed' : '60s TTJ Lookahead',
+      subtext: 'Municipal Junction Coordination',
+      badge: isMissionActive ? 'LIVE ARMED' : 'STANDBY',
       badgeColor: isMissionActive ? '#059669' : '#d97706',
       badgeBg: isMissionActive ? '#ecfdf5' : '#fffbeb',
       pulse: isMissionActive
@@ -69,12 +69,12 @@ export default function CommandKpiBar({
       iconBg: '#f0fdf4',
       iconColor: '#16a34a',
       label: 'EST. TIME SAVED',
-      value: `${minutesSaved} Min / Mission`,
-      subtext: 'Holt ML Dynamic Re-routing',
-      badge: '+42% FASTER',
+      value: minutesSaved ? `${minutesSaved} Min Saved` : (isMissionActive ? 'Optimal Path' : 'Corridor Ready'),
+      subtext: timeSaved > 0 ? 'Dijkstra MinHeap Detour' : 'Zero Congestion Delay',
+      badge: timeSaved > 0 ? `${Math.round((timeSaved / 60) * 14)}% FASTER` : (isMissionActive ? 'OPTIMAL' : 'ACTIVE'),
       badgeColor: '#15803d',
       badgeBg: '#dcfce7',
-      pulse: false
+      pulse: Boolean(timeSaved > 0)
     }
   ];
 

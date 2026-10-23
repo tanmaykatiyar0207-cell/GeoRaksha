@@ -32,7 +32,10 @@ export function computeETA() {
     return null;
   }
   
-  const rawEta = sharedState.activeRoute.totalTimeSeconds;
+  // Use remaining corridor travel time if ambulance is moving, otherwise full route baseline
+  const rawEta = typeof sharedState.ambulancePosition?.etaSeconds === 'number'
+    ? Math.max(0, sharedState.ambulancePosition.etaSeconds)
+    : sharedState.activeRoute.totalTimeSeconds;
   
   // Apply Predictive Model (Holt's Method)
   if (ema === null) {

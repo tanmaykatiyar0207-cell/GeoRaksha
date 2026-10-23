@@ -1,33 +1,19 @@
 /**
- * ambulanceSimulator.js — Ambulance Position Tracker for GeoRaksha
+ * ambulanceSimulator.js — High-Precision Ambulance Movement & Telemetry Engine
  *
- * Interpolates the ambulance's position along the active route's GeoJSON
- * LineString using Turf.js `along()` and `length()`.
- *
- * Key design:
- *   • elapsedSeconds is a monotonic counter incremented each tick —
- *     it does NOT reset to 0 when the route changes/reroutes, so the
- *     ambulance's progress continues smoothly.
- *   • On each 1-second tick, reads sharedState.activeRoute.geoJson and
- *     totalTimeSeconds to compute progress and position.
- *   • When a reroute occurs mid-transit, the ambulance's elapsed time
- *     stays the same but the new route's totalTimeSeconds changes,
- *     causing the progress fraction to adjust naturally — the ambulance
- *     simply continues from wherever it is on the new line geometry.
- *
- * Usage:
- *   import { startAmbulanceSimulation } from './ambulanceSimulator.js';
- *   const stop = startAmbulanceSimulation((update) => {
- *     io.emit('ambulance:update', update);
- *   });
- *   // later: stop();
+ * Simulates emergency vehicle kinematics along activeRoute GeoJSON coordinates.
+ * Features:
+ *   • Incremental distance advancement (meters/second based on live road speeds)
+ *   • Zero-teleportation mid-transit rerouting
+ *   • Real-time heading calculation with bearing stabilization
+ *   • Continuous position & corridor progress synchronization with sharedState
  */
 
 import along from '@turf/along';
 import length from '@turf/length';
 import { sharedState, stateEvents, logAgentActivity } from '../sharedState.js';
 
-const TICK_MS = 1000; // 1-second tick — more granular than bus ticks
+const TICK_MS = 1000; // 1-second simulation tick
 
 function computeBearing(lat1, lon1, lat2, lon2) {
   if (lat1 === lat2 && lon1 === lon2) return 0;
@@ -46,117 +32,127 @@ function computeBearing(lat1, lon1, lat2, lon2) {
  * Start the ambulance simulation.
  *
  * @param {function} onUpdate — callback receiving
- *   { lat: number, lon: number, heading: number, etaSeconds: number }
+ *   { lat: number, lon: number, heading: number, etaSeconds: number, speed: number }
  * @returns {function} A stop function that halts the simulation.
  */
 export function startAmbulanceSimulation(onUpdate) {
+  let distanceTraveledKm = 0;
   let elapsedSeconds = 0;
   let intervalId = null;
+  let lastHeading = 0;
 
-  const resetElapsed = () => { elapsedSeconds = 0; };
-  stateEvents.on('route:started', resetElapsed);
+  const resetProgress = () => {
+    distanceTraveledKm = 0;
+    elapsedSeconds = 0;
+  };
+  stateEvents.on('route:started', resetProgress);
 
   function tick() {
     if (!sharedState.navigationStarted) {
-      return; // wait for user to select route
+      return;
     }
 
     const route = sharedState.activeRoute;
     if (!route || !route.geoJson || !route.totalTimeSeconds) {
-      return; // no route yet, skip tick but keep counting
+      return;
     }
+
+    const line = route.geoJson;
+    const totalLengthKm = length(line, { units: 'kilometers' });
+    if (totalLengthKm <= 0) return;
 
     elapsedSeconds += TICK_MS / 1000;
 
-    const totalTime = route.totalTimeSeconds;
-    const progress = Math.min(elapsedSeconds / totalTime, 1);
-    const etaSeconds = Math.max(totalTime - elapsedSeconds, 0);
+    // Realistic emergency cruising speed (50 km/h baseline with dynamic speed adjustments)
+    let speedKmh = 50;
 
-    // Compute position along the GeoJSON LineString
-    const line = route.geoJson; // { type: "LineString", coordinates: [[lon,lat], ...] }
-    const totalLengthKm = length(line, { units: 'kilometers' });
-    const distanceAlongKm = progress * totalLengthKm;
+    // Check if the current segment has active congestion
+    const edgePath = route.edgePath || [];
+    const nodePath = route.nodePath || [];
+    
+    // Estimate current edge index based on distance progress
+    const progressFrac = Math.min(distanceTraveledKm / Math.max(totalLengthKm, 0.001), 0.999);
+    const estimatedEdgeIdx = Math.min(Math.floor(progressFrac * edgePath.length), edgePath.length - 1);
+    const currentEdgeId = edgePath[estimatedEdgeIdx];
 
-    // along() returns a GeoJSON Point Feature at the given distance
-    const point = along(line, distanceAlongKm, { units: 'kilometers' });
-    const nextPoint = along(line, Math.min(distanceAlongKm + 0.01, totalLengthKm), { units: 'kilometers' });
+    if (currentEdgeId && sharedState.segments[currentEdgeId]) {
+      const seg = sharedState.segments[currentEdgeId];
+      if (seg.status === 'congested') {
+        speedKmh = Math.max(8, seg.avgSpeed || 10);
+      } else if (seg.status === 'slow') {
+        speedKmh = Math.max(22, seg.avgSpeed || 25);
+      } else if (seg.status === 'blocked') {
+        speedKmh = 4; // crawling before detour takes effect
+      }
+    }
+
+    // Advance physical distance by speed * time
+    const deltaKm = (speedKmh / 3600) * (TICK_MS / 1000);
+    distanceTraveledKm = Math.min(distanceTraveledKm + deltaKm, totalLengthKm);
+
+    // Compute interpolated coordinate on the path
+    const point = along(line, distanceTraveledKm, { units: 'kilometers' });
+    const lookaheadKm = Math.min(distanceTraveledKm + 0.015, totalLengthKm);
+    const nextPoint = along(line, lookaheadKm, { units: 'kilometers' });
 
     const [lon, lat] = point.geometry.coordinates;
     const [nextLon, nextLat] = nextPoint.geometry.coordinates;
 
-    const heading = computeBearing(lat, lon, nextLat, nextLon);
-    
-    // The simulation moves linearly over the total time, so instantaneous speed = average route speed
-    const speedKmh = totalTime > 0 ? totalLengthKm / (totalTime / 3600) : 0;
-
-    onUpdate({
-      lat,
-      lon,
-      heading: Math.round(heading),
-      etaSeconds: Math.round(etaSeconds),
-      speed: Math.round(speedKmh),
-    });
-
-    // ── Multi-Agent Live Navigation Co-Pilot Engagement ────────────────
-
-    // AUTONOMOUS DEMO SCRIPT: Automatically trigger traffic jam for Manipal Hospital
-    const endNode = route.nodePath ? route.nodePath[route.nodePath.length - 1] : null;
-    if (endNode === 'stop_21160' && Math.floor(elapsedSeconds) === 15) {
-      const targetEdgeIdx = Math.floor(route.edgePath.length * 0.3);
-      const targetEdge = route.edgePath[targetEdgeIdx];
-      if (targetEdge && (!sharedState.segments[targetEdge] || sharedState.segments[targetEdge].status !== 'congested')) {
-        sharedState.segments[targetEdge] = { readings: [], avgSpeed: 1, status: 'congested' };
-        stateEvents.emit('segments:changed', targetEdge);
-        logAgentActivity('traffic', '🚨', 'AUTONOMOUS SENSOR DETECTED', `Live bus telemetry detected sudden severe gridlock on upcoming segment ${targetEdge} (Speed: 1 km/h). AI forcing immediate diversion.`);
-      }
+    if (distanceTraveledKm < totalLengthKm - 0.005) {
+      lastHeading = computeBearing(lat, lon, nextLat, nextLon);
     }
 
-    if (elapsedSeconds % 8 === 0) {
-      const cycle = Math.floor(elapsedSeconds / 8) % 4;
-      const distanceRemM = Math.round((1 - progress) * totalLengthKm * 1000);
-      const minsRem = Math.ceil(etaSeconds / 60);
+    // Remaining travel distance and dynamic ETA
+    const remainingKm = Math.max(0, totalLengthKm - distanceTraveledKm);
+    const remainingEtaSeconds = (remainingKm / Math.max(speedKmh, 5)) * 3600;
 
-      if (cycle === 0) {
-        logAgentActivity(
-          'traffic',
-          '📡',
-          'Downstream Corridor Monitored',
-          `Traffic Monitor verified road conditions: Free-flow speed maintained along next 600m segment.`
-        );
-      } else if (cycle === 1) {
-        logAgentActivity(
-          'route',
-          '🗺️',
-          'Active Trajectory Verified',
-          `Route Optimizer confirmed optimal corridor (${distanceRemM}m remaining to destination). 0 bottlenecks on active path.`
-        );
-      } else if (cycle === 2) {
-        logAgentActivity(
-          'eta',
-          '⏱️',
-          'Arrival Countdown Synchronized',
-          `ETA Predictor calibrated arrival window: ${minsRem} mins remaining with real-time transit velocities.`
-        );
-      } else if (cycle === 3) {
-        logAgentActivity(
-          'signal',
-          '🚦',
-          'Green Wave Intersection Scan',
-          `Signal Coordinator scanning for upcoming traffic signal beacon within 60-second priority window.`
-        );
-      }
+    // Determine nearest forward node for signal coordination & mid-route rerouting
+    const nearestNodeIdx = Math.min(Math.floor(progressFrac * nodePath.length), nodePath.length - 1);
+    const currentWayNodeId = nodePath[nearestNodeIdx] || null;
+
+    // Update sharedState progress tracker
+    sharedState.ambulanceProgress = {
+      currentEdgeIdx: estimatedEdgeIdx,
+      distanceTraveledKm,
+      remainingKm,
+      currentWayNodeId,
+    };
+
+    const updatePayload = {
+      lat,
+      lon,
+      heading: Math.round(lastHeading),
+      etaSeconds: Math.round(remainingEtaSeconds),
+      speed: Math.round(speedKmh),
+      progress: progressFrac,
+      distanceTraveledKm: Number(distanceTraveledKm.toFixed(2)),
+      remainingKm: Number(remainingKm.toFixed(2)),
+    };
+
+    sharedState.ambulancePosition = updatePayload;
+    onUpdate(updatePayload);
+
+    // Periodic telemetry confirmation every 15s (without fake scripted numbers)
+    if (elapsedSeconds > 0 && Math.floor(elapsedSeconds) % 15 === 0) {
+      const remainingMins = Math.ceil(remainingEtaSeconds / 60);
+      logAgentActivity(
+        'route',
+        '🚑',
+        'Corridor Telemetry Active',
+        `Ambulance en route (${Math.round(remainingKm * 1000)}m remaining). Dynamic ETA: ${remainingMins} min at ${Math.round(speedKmh)} km/h.`,
+        { speedKmh, remainingKm: Number(remainingKm.toFixed(2)), etaSeconds: Math.round(remainingEtaSeconds) }
+      );
     }
   }
 
   intervalId = setInterval(tick, TICK_MS);
-
-  console.log(`[ambulanceSim] 🚑 Ambulance simulation started (tick every ${TICK_MS}ms)`);
+  console.log(`[ambulanceSim] 🚑 Precision ambulance simulation started (tick every ${TICK_MS}ms)`);
 
   return function stopAmbulanceSimulation() {
     if (intervalId) {
       clearInterval(intervalId);
       intervalId = null;
     }
-    console.log(`[ambulanceSim] ⏹ Ambulance simulation stopped (elapsed: ${elapsedSeconds.toFixed(0)}s)`);
+    console.log(`[ambulanceSim] ⏹ Ambulance simulation stopped (distance: ${distanceTraveledKm.toFixed(2)}km)`);
   };
 }
